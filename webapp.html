@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pac-Man Game</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: black;
+            flex-direction: column;
+            text-align: center;
+            overflow: hidden;
+        }
+
+        canvas {
+            border: 2px solid white;
+        }
+
+        h1 {
+            color: white;
+            font-size: 50px;
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        #gameOver {
+            display: none;
+            color: red;
+        }
+
+        #win {
+            display: none;
+            color: green;
+            font-size: 60px;
+        }
+
+        #celebrate {
+            display: none;
+            color: yellow;
+            font-size: 30px;
+        }
+
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #008CBA;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #005f73;
+        }
+
+        /* Confetti styles */
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: yellow;
+            animation: confetti 1s linear infinite;
+        }
+
+        @keyframes confetti {
+            0% {
+                transform: translateY(-50px) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(300px) rotate(720deg);
+                opacity: 0;
+            }
+        }
+
+        /* Pac-Man dancing */
+        @keyframes pacmanDance {
+            0% {
+                transform: rotate(0deg);
+            }
+            50% {
+                transform: rotate(360deg);
+            }
+            100% {
+                transform: rotate(0deg);
+            }
+        }
+
+        .pacman-dance {
+            animation: pacmanDance 1s infinite;
+        }
+    </style>
+</head>
+<body>
+    <h1 id="level">Level: 1</h1>
+    <h1 id="gameOver">GAME OVER</h1>
+    <h1 id="win">YOU WIN! LET'S CELEBRATE!</h1>
+    <h1 id="celebrate">🎉🎉🎉 PARTY TIME! 🎉🎉🎉</h1>
+    <canvas id="pacman" width="400" height="400"></canvas>
+    <button id="replayBtn" style="display:none;">Replay</button>
+
+    <audio id="winMusic" src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" preload="auto"></audio>
+
+    <script>
+        const canvas = document.getElementById('pacman');
+        const ctx = canvas.getContext('2d');
+
+        const PACMAN_RADIUS = 20;
+        const SPEED = 5;
+        const GHOST_RADIUS = 15;
+        const GAME_WIDTH = canvas.width;
+        const GAME_HEIGHT = canvas.height;
+
+        let pacman = {
+            x: 200,
+            y: 200,
+            dx: SPEED,
+            dy: 0,
+        };
+
+        let ghost = {
+            x: 50,
+            y: 50,
+            dx: SPEED / 2,
+            dy: SPEED / 2
+        };
+
+        let mints = [];
+        let mintCount = 0;
+        let level = 1;  // Track the level
+
+        let isGameOver = false;
+        let isWin = false;
+
+        function resetGame() {
+            pacman = {
+                x: 200,
+                y: 200,
+                dx: SPEED,
+                dy: 0,
+            };
+
+            ghost = {
+                x: 50,
+                y: 50,
+                dx: SPEED / 2,
+                dy: SPEED / 2
+            };
+
+            mints = [];
+            mintCount = 0;
+
+            // Adding mints based on the current level (1 mint per level)
+            for (let i = 0; i < level; i++) {
+                mints.push({ x: Math.random() * GAME_WIDTH, y: Math.random() * GAME_HEIGHT });
+                mintCount++;
+            }
+
+            isGameOver = false;
+            isWin = false;
+
+            document.getElementById('gameOver').style.display = 'none';
+            document.getElementById('win').style.display = 'none';
+            document.getElementById('celebrate').style.display = 'none';
+            document.getElementById('replayBtn').style.display = 'none';
+
+            // Remove confetti and pacman dance
+            document.querySelectorAll('.confetti').forEach(confetti => confetti.remove());
+            document.querySelectorAll('.pacman-dance').forEach(dancer => dancer.classList.remove('pacman-dance'));
+
+            // Update level display
+            document.getElementById('level').innerText = `Level: ${level}`;
+        }
+
+        function gameLoop() {
+            if (isGameOver || isWin) return;
+
+            clearCanvas();
+            drawPacman();
+            movePacman();
+            drawGhost();
+            moveGhost();
+            checkCollisions();
+            drawMints();
+            checkMintCollection();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function clearCanvas() {
+            ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        }
+
+        function drawPacman() {
+            ctx.beginPath();
+            ctx.arc(pacman.x, pacman.y, PACMAN_RADIUS, 0.2 * Math.PI, 1.8 * Math.PI);
+            ctx.lineTo(pacman.x, pacman.y);
+            ctx.fillStyle = "yellow";
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        function movePacman() {
+            pacman.x += pacman.dx;
+            pacman.y += pacman.dy;
+
+            if (pacman.x + PACMAN_RADIUS > GAME_WIDTH || pacman.x - PACMAN_RADIUS < 0) {
+                pacman.dx = -pacman.dx;
+            }
+            if (pacman.y + PACMAN_RADIUS > GAME_HEIGHT || pacman.y - PACMAN_RADIUS < 0) {
+                pacman.dy = -pacman.dy;
+            }
+        }
+
+        function drawGhost() {
+            ctx.beginPath();
+            ctx.arc(ghost.x, ghost.y, GHOST_RADIUS, 0, Math.PI * 2);
+            ctx.fillStyle = "red";
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        function moveGhost() {
+            let angle = Math.atan2(pacman.y - ghost.y, pacman.x - ghost.x);
+            ghost.dx = (SPEED / 2) * Math.cos(angle);
+            ghost.dy = (SPEED / 2) * Math.sin(angle);
+
+            ghost.x += ghost.dx;
+            ghost.y += ghost.dy;
+
+            if (ghost.x + GHOST_RADIUS > GAME_WIDTH || ghost.x - GHOST_RADIUS < 0) {
+                ghost.dx = -ghost.dx;
+            }
+            if (ghost.y + GHOST_RADIUS > GAME_HEIGHT || ghost.y - GHOST_RADIUS < 0) {
+                ghost.dy = -ghost.dy;
+            }
+        }
+
+        function checkCollisions() {
+            const dist = Math.sqrt(Math.pow(pacman.x - ghost.x, 2) + Math.pow(pacman.y - ghost.y, 2));
+            if (dist < PACMAN_RADIUS + GHOST_RADIUS) {
+                gameOver();
+            }
+        }
+
+        function drawMints() {
+            mints.forEach(mint => {
+                ctx.beginPath();
+                ctx.arc(mint.x, mint.y, 5, 0, Math.PI * 2);
+                ctx.fillStyle = "white";
+                ctx.fill();
+                ctx.closePath();
+            });
+        }
+
+        function checkMintCollection() {
+            mints.forEach((mint, index) => {
+                const dist = Math.sqrt(Math.pow(pacman.x - mint.x, 2) + Math.pow(pacman.y - mint.y, 2));
+                if (dist < PACMAN_RADIUS + 5) {
+                    mints.splice(index, 1);
+                    mintCount--;
+                    if (mintCount === 0) {
+                        levelUp();
+                    }
+                }
+            });
+        }
+
+        function levelUp() {
+            level++;  // Increase level
+            winGame();  // Trigger win
+        }
+
+        function winGame() {
+            document.getElementById("win").style.display = "block";
+            document.getElementById("celebrate").style.display = "block";
+            document.getElementById("win").innerHTML = `YOU WIN! LET'S CELEBRATE! Level ${level}`;
+            isWin = true;
+            document.getElementById('replayBtn').style.display = 'inline-block';
+            startConfetti();
+            startMusic();
+            startPacmanDance();
+        }
+
+        function gameOver() {
+            document.getElementById("gameOver").style.display = "block";
+            isGameOver = true;
+            document.getElementById('replayBtn').style.display = 'inline-block';
+        }
+
+        function startConfetti() {
+            for (let i = 0; i < 150; i++) { // More confetti for the party
+                let confetti = document.createElement('div');
+                confetti.classList.add('confetti');
+                confetti.style.left = Math.random() * GAME_WIDTH + 'px';
+                confetti.style.animationDuration = Math.random() * 2 + 2 + 's';
+                document.body.appendChild(confetti);
+            }
+        }
+
+        function startMusic() {
+            const music = document.getElementById("winMusic");
+            music.play();
+        }
+
+        function startPacmanDance() {
+            const pacmanElement = document.querySelector('canvas');
+            pacmanElement.classList.add('pacman-dance');
+        }
+
+        document.addEventListener('keydown', (event) => {
+            if (isGameOver || isWin) {
+                if (event.key === ' ') { // Spacebar pressed after game over or win
+                    resetGame();
+                    gameLoop();
+                }
+                return;
+            }
+
+            if (event.key === 'ArrowUp') {
+                pacman.dx = 0;
+                pacman.dy = -SPEED;
+            } else if (event.key === 'ArrowDown') {
+                pacman.dx = 0;
+                pacman.dy = SPEED;
+            } else if (event.key === 'ArrowLeft') {
+                pacman.dx = -SPEED;
+                pacman.dy = 0;
+            } else if (event.key === 'ArrowRight') {
+                pacman.dx = SPEED;
+                pacman.dy = 0;
+            }
+        });
+
+        document.getElementById('replayBtn').addEventListener('click', () => {
+            resetGame();
+            gameLoop();
+        });
+
+        resetGame();
+        gameLoop();
+    </script>
+</body>
+</html>
